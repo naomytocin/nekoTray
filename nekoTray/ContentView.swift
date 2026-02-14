@@ -1,59 +1,64 @@
-//
-//  ContentView.swift
-//  nekoTray
-//
-//  Created by naomytocin on 2026/2/14.
-//
-
 import SwiftUI
-import SwiftData
 
 struct ContentView: View {
-    @Environment(\.modelContext) private var modelContext
-    @Query private var items: [Item]
-
+    @ObservedObject var neko: CatViewModel
+    let foods = ["food_1", "food_2", "food_3", "food_4", "food_5"]
+    
     var body: some View {
-        NavigationSplitView {
-            List {
-                ForEach(items) { item in
-                    NavigationLink {
-                        Text("Item at \(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))")
-                    } label: {
-                        Text(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))
-                    }
-                }
-                .onDelete(perform: deleteItems)
-            }
-            .navigationSplitViewColumnWidth(min: 180, ideal: 200)
-            .toolbar {
-                ToolbarItem {
-                    Button(action: addItem) {
-                        Label("Add Item", systemImage: "plus")
-                    }
+        VStack(spacing: 15) {
+            ZStack {
+                Image(neko.currentSprite)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 120, height: 120)
+                
+                if neko.currentState == .sleeping {
+                    Text("Zzz...")
+                        .font(.system(size: 20, weight: .bold, design: .rounded))
+                        .offset(x: 40, y: -40)
                 }
             }
-        } detail: {
-            Text("Select an item")
-        }
-    }
-
-    private func addItem() {
-        withAnimation {
-            let newItem = Item(timestamp: Date())
-            modelContext.insert(newItem)
-        }
-    }
-
-    private func deleteItems(offsets: IndexSet) {
-        withAnimation {
-            for index in offsets {
-                modelContext.delete(items[index])
+            .frame(height: 140)
+            
+            Divider().background(Color.white.opacity(0.2))
+            
+            if neko.currentState != .sleeping {
+                HStack(spacing: 15) {
+                    ForEach(foods, id: \.self) { food in
+                        DraggableFood(imageName: food, neko: neko)
+                    }
+                }
+            } else {
+                Text("Sleeping until 9 AM").font(.caption).opacity(0.6)
             }
         }
+        .padding()
+        .frame(width: 250)
+        .background(.ultraThinMaterial)
     }
 }
 
-#Preview {
-    ContentView()
-        .modelContainer(for: Item.self, inMemory: true)
+struct DraggableFood: View {
+    let imageName: String
+    @ObservedObject var neko: CatViewModel
+    @State private var dragOffset: CGSize = .zero
+    
+    var body: some View {
+        Image(imageName)
+            .resizable()
+            .frame(width: 30, height: 30)
+            .offset(dragOffset)
+            .gesture(
+                DragGesture()
+                    .onChanged { gesture in
+                        dragOffset = gesture.translation
+                        if dragOffset.height < -40 { neko.prepareToEat() }
+                    }
+                    .onEnded { _ in
+                        if dragOffset.height < -40 { neko.feedCat() }
+                        else { neko.cancelEat() }
+                        withAnimation(.spring()) { dragOffset = .zero }
+                    }
+            )
+    }
 }
